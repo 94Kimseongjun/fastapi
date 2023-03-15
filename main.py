@@ -6,7 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 
 # cmd : uvicorn main:app --reload
-fifa4_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJYLUFwcC1SYXRlLUxpbWl0IjoiNTAwOjEwIiwiYWNjb3VudF9pZCI6IjIwNjM5MjQyOTQiLCJhdXRoX2lkIjoiMiIsImV4cCI6MTY4OTA1Mjg5MiwiaWF0IjoxNjczNTAwODkyLCJuYmYiOjE2NzM1MDA4OTIsInNlcnZpY2VfaWQiOiI0MzAwMTE0ODEiLCJ0b2tlbl90eXBlIjoiQWNjZXNzVG9rZW4ifQ.Zltg5nSZfLzyZ6dBlGZD9fmoLoIMt0xXkP7yZv-AgUY"
+
+with open('api_key.json','r') as f:
+    json_data = json.load(f)
+fifa4_api_key = json_data['fifa4_api_key']
+
 header = {
     'Authorization': fifa4_api_key
 }
