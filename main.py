@@ -1,5 +1,6 @@
+import base64
 import json
-
+import sys
 from fastapi import FastAPI, Request, Response, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,13 @@ import requests
 with open('api_key.json','r') as f:
     json_data = json.load(f)
 fifa4_api_key = json_data['fifa4_api_key']
+
+with open('seasonId.json','r',encoding='UTF-8') as f:
+    season_ids = json.load(f)
+
+with open('ids.json','r',encoding='UTF-8') as f:
+    player_ids = json.load(f)
+
 
 header = {
     'Authorization': fifa4_api_key
@@ -36,7 +44,26 @@ division_dict={
     3100: "유망주3"
 }
 
-
+division_icon_dict={
+    800:"0",
+    900: "1",
+    1000: "2",
+    1100: "3",
+    1200: "4",
+    1300: "5",
+    2000: "6",
+    2100: "7",
+    2200: "8",
+    2300: "9",
+    2400: "10",
+    2500: "11",
+    2600: "12",
+    2700: "13",
+    2800: "14",
+    2900: "15",
+    3000: "16",
+    3100: "17"
+}
 
 
 app = FastAPI()
@@ -53,17 +80,67 @@ class SearchUserData(BaseModel):
     nickName: str
 """
 
+
+
 def call_nexon_api(url):
     try:
         response = requests.get(url, headers=header)
         if response.status_code==200:
             return response
         else:
-            raise HTTPException(status_code=response.status_code, detail=response.text)
+            return None
+            #raise HTTPException(status_code=response.status_code, detail=response.text)
     except requests.RequestException as error:
-        raise HTTPException(status_code=500, detail=str(error))
+        return None
+        #raise HTTPException(status_code=500, detail=str(error))
+
+""" 
+spid = "https://static.api.nexon.co.kr/fifaonline4/latest/spid.json"
+test = call_nexon_api(spid)
+
+with open('spid.json','w', encoding='UTF-8') as f:
+    json.dump(test.json(),f, ensure_ascii=False, indent=4)
+"""
 
 
+
+@app.get("/searchPlayer")
+def search_player(spId: str):
+    result = {"name":"", "season":"", "seasonImg":"", "img":""}
+    season = spId[:-6]
+    player = spId[3:]
+
+    # 시즌 이름 찾기
+    result_dict = next((item for item in season_ids if item["seasonId"] == int(season)), None)
+    if result_dict:
+        # 찾은 딕셔너리의 className 값을 출력
+        result["season"] = result_dict["className"]
+        result["seasonImg"] = result_dict["seasonImg"]
+    else:
+        # 해당 seasonId를 가진 딕셔너리가 없는 경우
+        raise HTTPException(status_code=404, detail="선수의 시즌을 찾을 수 없습니다.")
+
+    # 선수 찾기
+    result["name"] = player_ids[player]
+
+    # get img
+    action_img_by_spid_api_url = "https://fo4.dn.nexoncdn.co.kr/live/externalAssets/common/playersAction/p{spid}.png".format(spid=spId)
+    action_img_response = call_nexon_api(action_img_by_spid_api_url)
+    if action_img_response:
+        img_data = action_img_response.content
+        base64_image = base64.b64encode(img_data).decode('utf-8')
+        result["img"] = base64_image
+
+    else:
+        pid = player.lstrip('0')
+        img_by_pid_api_url = "https://fo4.dn.nexoncdn.co.kr/live/externalAssets/common/players/p{pid}.png".format(pid=pid)
+        img_response = call_nexon_api(img_by_pid_api_url)
+        if img_response:
+            img_data = img_response.content
+            base64_image = base64.b64encode(img_data).decode('utf-8')
+            result["img"] = base64_image
+
+    return result
 
 @app.get("/searchNickName")
 async def search_nick_name(nickName: str):
@@ -102,13 +179,20 @@ async def search_nick_name(nickName: str):
             division = maxdivision_info['division']
             achievementDate = maxdivision_info['achievementDate']
             maxdivision_info['division'] = division_dict[division]
+
+            ico_number = division_icon_dict[division]
+
             temp_time = achievementDate.split("T")
             maxdivision_info['achievementDate'] = temp_time[0]
             if matchType == 50:  # 공식경기
                 maxdivision_info['matchType'] = '공식경기'
+                maxdivision_info["ico_img"] = "https://ssl.nexon.com/s2/game/fo4/obt/rank/large/update_2009/ico_rank{}.png".format(ico_number)
                 result["rank"] = maxdivision_info
             elif matchType == 52:  # 감독모드
                 maxdivision_info['matchType'] = '감독모드'
+                maxdivision_info[
+                    "ico_img"] = "https://ssl.nexon.com/s2/game/fo4/obt/rank/large/update_2009/ico_rank{}_m.png".format(
+                    ico_number)
                 result["autoRank"] = maxdivision_info
     else:
         raise HTTPException(status_code=maxdivision_response.status_code, detail=maxdivision_response.text)
@@ -137,6 +221,7 @@ async def search_nick_name(nickName: str):
         result["matchList"] = match_list
     else:
         raise HTTPException(status_code=match_history_response.status_code, detail=match_history_response.text)
+
     return result
 
 
