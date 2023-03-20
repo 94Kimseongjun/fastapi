@@ -23,6 +23,14 @@ header = {
     'Authorization': fifa4_api_key
 }
 
+search_type_dict={
+    "공식경기":50,
+    "감독모드":52,
+    "리그친선":30,
+    "클래식 1on1":40,
+    "공식 친선":60
+}
+
 division_dict={
     800:"슈퍼챔피언스",
     900: "챔피언스",
@@ -143,7 +151,7 @@ def search_player(spId: str):
     return result
 
 @app.get("/searchNickName")
-async def search_nick_name(nickName: str):
+async def search_nick_name(nickName: str, searchType: str, searchMatchCount: int):
     # 최종 결과값
     result = {
         "accessId": "",
@@ -198,14 +206,14 @@ async def search_nick_name(nickName: str):
         raise HTTPException(status_code=maxdivision_response.status_code, detail=maxdivision_response.text)
 
 
-    match_history_api_url = "https://api.nexon.co.kr/fifaonline4/v1.0/users/{accessid}/matches?matchtype={matchtype}&offset={offset}&limit={limit}".format(accessid=accessId,matchtype=50,offset=0,limit=20)
+    match_history_api_url = "https://api.nexon.co.kr/fifaonline4/v1.0/users/{accessid}/matches?matchtype={matchtype}&offset={offset}&limit={limit}".format(accessid=accessId,matchtype=search_type_dict[searchType],offset=0,limit=searchMatchCount)
     match_history_response = call_nexon_api(match_history_api_url)
     match_list = []
     if match_history_response:
         match_id_list = match_history_response.json()
         # 최근 20경기 분석 후 평균 점유율, 헤더 시도 비율, 중거리 슛 시도 비율 가져오기
         detail_match_api_url = "https://api.nexon.co.kr/fifaonline4/v1.0/matches/{matchid}"
-        cnt = 0
+
         for match_id in match_id_list:
 
             detail_match_response = call_nexon_api(detail_match_api_url.format(matchid=match_id))
@@ -215,9 +223,7 @@ async def search_nick_name(nickName: str):
                 #matchId = detail_match["matchId"]
                 #matchDate = detail_match["matchDate"]
                 #matchInfo = detail_match["matchInfo"]
-            cnt += 1
-            if cnt == 10:
-                break
+
         result["matchList"] = match_list
     else:
         raise HTTPException(status_code=match_history_response.status_code, detail=match_history_response.text)
